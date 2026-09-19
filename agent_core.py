@@ -47,9 +47,10 @@ memory = Memory.from_config(config)
 ALLOWED_KEYS = ["name", "location", "job", "education", "preference", "goal", "other"]
 
 
-def extract_facts(user_message: str, assistant_reply: str) -> list[dict]:
+def extract_facts(user_message: str, assistant_reply: str, retries: int = 2) -> list[dict]:
     """Extract facts as {key, value} pairs from a fixed vocabulary of keys,
-    so conflicting facts (same key) can replace old ones instead of piling up."""
+    so conflicting facts (same key) can replace old ones instead of piling up.
+    Retries on empty/failed LLM responses since Groq occasionally returns blank output."""
     prompt = (
         "Extract short standalone facts about the user worth remembering long-term. "
         "For each fact, assign it ONE of these exact category keys: "
@@ -62,29 +63,37 @@ def extract_facts(user_message: str, assistant_reply: str) -> list[dict]:
         "If nothing is worth remembering, return [].\n\n"
         f"User: {user_message}\nAssistant: {assistant_reply}"
     )
-    try:
-        response = groq_client.chat.completions.create(
-            model="openai/gpt-oss-20b",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=250,
-        )
-        text = response.choices[0].message.content.strip()
-        print(f"[extract_facts] raw LLM output: {text!r}", flush=True)
 
-        if text.startswith("```"):
-            text = text.strip("`").replace("json\n", "", 1)
-        facts = json.loads(text)
-        if isinstance(facts, list):
-            result = [
-                f for f in facts
-                if isinstance(f, dict)
-                and f.get("key") in ALLOWED_KEYS
-                and f.get("value")
-            ]
-            print(f"[extract_facts] parsed facts: {result}", flush=True)
-            return result
-    except Exception as e:
-        print(f"[extract_facts] FAILED: {type(e).__name__}: {e}", flush=True)
+    for attempt in range(retries + 1):
+        try:
+            response = groq_client.chat.completions.create(
+                model="openai/gpt-oss-20b",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=250,
+            )
+            text = response.choices[0].message.content.strip()
+            print(f"[extract_facts] attempt {attempt} raw LLM output: {text!r}", flush=True)
+
+            if not text:
+                print(f"[extract_facts] attempt {attempt} got empty response, retrying...", flush=True)
+                continue
+
+            if text.startswith("```"):
+                text = text.strip("`").replace("json\n", "", 1)
+            facts = json.loads(text)
+            if isinstance(facts, list):
+                result = [
+                    f for f in facts
+                    if isinstance(f, dict)
+                    and f.get("key") in ALLOWED_KEYS
+                    and f.get("value")
+                ]
+                print(f"[extract_facts] parsed facts: {result}", flush=True)
+                return result
+        except Exception as e:
+            print(f"[extract_facts] attempt {attempt} FAILED: {type(e).__name__}: {e}", flush=True)
+
+    print("[extract_facts] all attempts failed, returning empty list", flush=True)
     return []
 
 

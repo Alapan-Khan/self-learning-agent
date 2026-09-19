@@ -12,12 +12,21 @@ USER_ID = "demo_user"
 # ---------- Custom styling ----------
 st.markdown("""
 <style>
-    #MainMenu, footer, header {visibility: hidden;}
+    #MainMenu, footer {visibility: hidden;}
+    [data-testid="stToolbar"] {visibility: hidden;}
+
+    header[data-testid="stHeader"] {
+        background-color: #0f0f10 !important;
+    }
+
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="collapsedControl"] {
+        visibility: visible !important;
+        color: #ececec !important;
+    }
 
     html, body, .stApp,
     [data-testid="stAppViewContainer"],
-    [data-testid="stHeader"],
-    [data-testid="stToolbar"],
     [data-testid="stDecoration"] {
         background-color: #0f0f10 !important;
     }
