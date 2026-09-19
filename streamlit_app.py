@@ -1,5 +1,5 @@
 import streamlit as st
-from agent_core import chat, get_all_memories
+from agent_core import chat, get_all_memories, clear_all_memories
 
 st.set_page_config(
     page_title="Self-Learning AI Agent",
@@ -51,13 +51,11 @@ st.markdown("""
         font-size: 1.05rem !important;
     }
 
-    /* Strip ALL borders on every descendant div, however deeply nested */
     [data-testid="stChatInput"] div {
         border: none !important;
         box-shadow: none !important;
     }
 
-    /* Re-apply border ONLY on the outer pill */
     [data-testid="stChatInput"] > div:first-child {
         border: 1px solid #3a3b3f !important;
         border-radius: 26px !important;
@@ -65,7 +63,6 @@ st.markdown("""
         padding: 4px 8px 4px 20px !important;
     }
 
-    /* Kill focus/active glow everywhere inside */
     [data-testid="stChatInput"] *,
     [data-testid="stChatInput"] *:focus,
     [data-testid="stChatInput"] *:focus-visible,
@@ -78,7 +75,6 @@ st.markdown("""
         background: transparent !important;
     }
 
-    /* Send button — hide Streamlit's default icon, draw our own arrow */
     [data-testid="stChatInput"] button {
         background-color: #ececec !important;
         border-radius: 50% !important;
@@ -187,6 +183,9 @@ with st.sidebar:
     if memories:
         for m in memories:
             st.markdown(f"• {m}")
+        if st.button("🗑️ Clear Memory"):
+            clear_all_memories(USER_ID)
+            st.rerun()
     else:
         st.caption("Nothing stored yet — start chatting.")
 

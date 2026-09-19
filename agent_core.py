@@ -93,10 +93,11 @@ def store_fact(key: str, value: str, user_id: str):
     (so 'location' updates in place instead of duplicating)."""
     try:
         existing = memory.get_all(filters={"user_id": user_id})
+        print(f"[store_fact] existing memories before store: {existing}", flush=True)
         for m in existing.get("results", []):
             if m.get("metadata", {}).get("key") == key:
                 memory.delete(memory_id=m["id"])
-                print(f"[store_fact] replaced old memory for key={key!r}", flush=True)
+                print(f"[store_fact] deleted old memory id={m['id']} for key={key!r}", flush=True)
 
         result = memory.add(value, user_id=user_id, infer=False, metadata={"key": key})
         print(f"[store_fact] stored key={key!r} value={value!r} -> {result}", flush=True)
@@ -147,3 +148,14 @@ def get_all_memories(user_id: str) -> list[str]:
     except Exception as e:
         print(f"[get_all_memories] FAILED: {type(e).__name__}: {e}", flush=True)
         return []
+
+
+def clear_all_memories(user_id: str):
+    """Delete every stored memory for a user — used by the Clear Memory button."""
+    try:
+        existing = memory.get_all(filters={"user_id": user_id})
+        for m in existing.get("results", []):
+            memory.delete(memory_id=m["id"])
+        print(f"[clear_all_memories] cleared all memories for user_id={user_id}", flush=True)
+    except Exception as e:
+        print(f"[clear_all_memories] FAILED: {type(e).__name__}: {e}", flush=True)
