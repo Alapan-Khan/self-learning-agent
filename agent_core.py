@@ -42,17 +42,23 @@ config = {
 
 memory = Memory.from_config(config)
 
+# Fixed vocabulary so the same type of fact always maps to the same key,
+# letting new facts correctly replace old ones instead of duplicating.
+ALLOWED_KEYS = ["name", "location", "job", "education", "preference", "goal", "other"]
+
 
 def extract_facts(user_message: str, assistant_reply: str) -> list[dict]:
-    """Extract facts as {key, value} pairs so conflicting facts (same key)
-    can replace old ones instead of piling up as separate memories."""
+    """Extract facts as {key, value} pairs from a fixed vocabulary of keys,
+    so conflicting facts (same key) can replace old ones instead of piling up."""
     prompt = (
-        "Extract short standalone facts about the user worth remembering "
-        "long-term (name, location, role, preferences, decisions). "
-        "For each fact, give it a short lowercase snake_case category key "
-        '(e.g. "name", "location", "job", "hair_type") and the fact text. '
+        "Extract short standalone facts about the user worth remembering long-term. "
+        "For each fact, assign it ONE of these exact category keys: "
+        f'{json.dumps(ALLOWED_KEYS)}. '
+        "Use the SAME key every time the same type of fact appears — e.g., always "
+        '"location" for where the user lives or is originally from, even if phrased '
+        "differently across messages. "
         "Return ONLY a JSON list like: "
-        '[{"key": "location", "value": "Lives in Bengaluru, originally from West Bengal"}]. '
+        '[{"key": "location", "value": "Originally from West Bengal, now working in Bengaluru"}]. '
         "If nothing is worth remembering, return [].\n\n"
         f"User: {user_message}\nAssistant: {assistant_reply}"
     )
@@ -71,7 +77,9 @@ def extract_facts(user_message: str, assistant_reply: str) -> list[dict]:
         if isinstance(facts, list):
             result = [
                 f for f in facts
-                if isinstance(f, dict) and "key" in f and "value" in f
+                if isinstance(f, dict)
+                and f.get("key") in ALLOWED_KEYS
+                and f.get("value")
             ]
             print(f"[extract_facts] parsed facts: {result}", flush=True)
             return result
