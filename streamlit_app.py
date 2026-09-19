@@ -13,16 +13,18 @@ USER_ID = "demo_user"
 st.markdown("""
 <style>
     #MainMenu, footer {visibility: hidden;}
-    [data-testid="stToolbar"] {visibility: hidden;}
+    [data-testid="stAppDeployButton"] {display: none !important;}
 
     header[data-testid="stHeader"] {
         background-color: #0f0f10 !important;
     }
 
-    [data-testid="stSidebarCollapsedControl"],
-    [data-testid="collapsedControl"] {
-        visibility: visible !important;
-        color: #ececec !important;
+    header[data-testid="stHeader"] svg {
+        fill: #ececec !important;
+    }
+
+    header[data-testid="stHeader"] button {
+        background-color: transparent !important;
     }
 
     html, body, .stApp,
