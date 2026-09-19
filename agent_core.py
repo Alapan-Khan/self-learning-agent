@@ -3,17 +3,25 @@ import json
 from dotenv import load_dotenv
 from groq import Groq
 from mem0 import Memory
+import streamlit as st
 
 load_dotenv()
 
-groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+def get_api_key():
+    """Reads the Groq API key from a local .env file (for local dev)
+    or from Streamlit Cloud's secrets store (for deployment)."""
+    return os.getenv("GROQ_API_KEY") or st.secrets.get("GROQ_API_KEY")
+
+
+groq_client = Groq(api_key=get_api_key())
 
 config = {
     "llm": {
         "provider": "groq",
         "config": {
             "model": "openai/gpt-oss-20b",
-            "api_key": os.getenv("GROQ_API_KEY"),
+            "api_key": get_api_key(),
         }
     },
     "embedder": {
