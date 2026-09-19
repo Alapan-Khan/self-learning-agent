@@ -43,13 +43,16 @@ config = {
 memory = Memory.from_config(config)
 
 
-def extract_facts(user_message: str, assistant_reply: str) -> list[str]:
-    """Lightweight, controlled-size fact extraction (avoids Mem0's default
-    extraction prompt, which is too large for Groq's free-tier TPM limit)."""
+def extract_facts(user_message: str, assistant_reply: str) -> list[dict]:
+    """Extract facts as {key, value} pairs so conflicting facts (same key)
+    can replace old ones instead of piling up as separate memories."""
     prompt = (
         "Extract short standalone facts about the user worth remembering "
-        "long-term (name, role, preferences, decisions). "
-        'Return ONLY a JSON list of strings, e.g. ["User\'s name is X"]. '
+        "long-term (name, location, role, preferences, decisions). "
+        "For each fact, give it a short lowercase snake_case category key "
+        '(e.g. "name", "location", "job", "hair_type") and the fact text. '
+        "Return ONLY a JSON list like: "
+        '[{"key": "location", "value": "Lives in Bengaluru, originally from West Bengal"}]. '
         "If nothing is worth remembering, return [].\n\n"
         f"User: {user_message}\nAssistant: {assistant_reply}"
     )
@@ -57,7 +60,7 @@ def extract_facts(user_message: str, assistant_reply: str) -> list[str]:
         response = groq_client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=200,
+            max_tokens=250,
         )
         text = response.choices[0].message.content.strip()
         print(f"[extract_facts] raw LLM output: {text!r}", flush=True)
@@ -66,7 +69,10 @@ def extract_facts(user_message: str, assistant_reply: str) -> list[str]:
             text = text.strip("`").replace("json\n", "", 1)
         facts = json.loads(text)
         if isinstance(facts, list):
-            result = [f for f in facts if isinstance(f, str)]
+            result = [
+                f for f in facts
+                if isinstance(f, dict) and "key" in f and "value" in f
+            ]
             print(f"[extract_facts] parsed facts: {result}", flush=True)
             return result
     except Exception as e:
@@ -74,9 +80,25 @@ def extract_facts(user_message: str, assistant_reply: str) -> list[str]:
     return []
 
 
+def store_fact(key: str, value: str, user_id: str):
+    """Store a fact, replacing any existing memory with the same key
+    (so 'location' updates in place instead of duplicating)."""
+    try:
+        existing = memory.get_all(filters={"user_id": user_id})
+        for m in existing.get("results", []):
+            if m.get("metadata", {}).get("key") == key:
+                memory.delete(memory_id=m["id"])
+                print(f"[store_fact] replaced old memory for key={key!r}", flush=True)
+
+        result = memory.add(value, user_id=user_id, infer=False, metadata={"key": key})
+        print(f"[store_fact] stored key={key!r} value={value!r} -> {result}", flush=True)
+    except Exception as e:
+        print(f"[store_fact] FAILED for key={key!r}: {type(e).__name__}: {e}", flush=True)
+
+
 def chat(message: str, user_id: str) -> str:
     """One full turn: retrieve relevant memories, generate a reply,
-    extract new facts, store them."""
+    extract new facts, store/update them."""
     try:
         relevant = memory.search(query=message, filters={"user_id": user_id}, limit=5)
         print(f"[chat] search results: {relevant}", flush=True)
@@ -103,11 +125,7 @@ def chat(message: str, user_id: str) -> str:
     print(f"[chat] facts to store: {facts}", flush=True)
 
     for fact in facts:
-        try:
-            result = memory.add(fact, user_id=user_id, infer=False)
-            print(f"[chat] stored fact: {fact!r} -> {result}", flush=True)
-        except Exception as e:
-            print(f"[chat] STORE FAILED for {fact!r}: {type(e).__name__}: {e}", flush=True)
+        store_fact(fact["key"], fact["value"], user_id)
 
     return reply
 
