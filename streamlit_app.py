@@ -5,6 +5,7 @@ st.set_page_config(
     page_title="Self-Learning AI Agent",
     page_icon="🧠",
     layout="centered",
+    initial_sidebar_state="expanded",
 )
 
 USER_ID = "demo_user"
