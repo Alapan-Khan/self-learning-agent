@@ -53,27 +53,37 @@ def extract_facts(user_message: str, assistant_reply: str) -> list[str]:
         "If nothing is worth remembering, return [].\n\n"
         f"User: {user_message}\nAssistant: {assistant_reply}"
     )
-    response = groq_client.chat.completions.create(
-        model="openai/gpt-oss-20b",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=200,
-    )
-    text = response.choices[0].message.content.strip()
     try:
+        response = groq_client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=200,
+        )
+        text = response.choices[0].message.content.strip()
+        print(f"[extract_facts] raw LLM output: {text!r}")
+
         if text.startswith("```"):
             text = text.strip("`").replace("json\n", "", 1)
         facts = json.loads(text)
         if isinstance(facts, list):
-            return [f for f in facts if isinstance(f, str)]
-    except (json.JSONDecodeError, ValueError):
-        pass
+            result = [f for f in facts if isinstance(f, str)]
+            print(f"[extract_facts] parsed facts: {result}")
+            return result
+    except Exception as e:
+        print(f"[extract_facts] FAILED: {type(e).__name__}: {e}")
     return []
 
 
 def chat(message: str, user_id: str) -> str:
     """One full turn: retrieve relevant memories, generate a reply,
     extract new facts, store them."""
-    relevant = memory.search(query=message, filters={"user_id": user_id}, limit=5)
+    try:
+        relevant = memory.search(query=message, filters={"user_id": user_id}, limit=5)
+        print(f"[chat] search results: {relevant}")
+    except Exception as e:
+        print(f"[chat] SEARCH FAILED: {type(e).__name__}: {e}")
+        relevant = {}
+
     memory_text = "\n".join(f"- {m['memory']}" for m in relevant.get("results", []))
 
     system_prompt = "You are a helpful assistant."
@@ -89,13 +99,25 @@ def chat(message: str, user_id: str) -> str:
     )
     reply = response.choices[0].message.content
 
-    for fact in extract_facts(message, reply):
-        memory.add(fact, user_id=user_id, infer=False)
+    facts = extract_facts(message, reply)
+    print(f"[chat] facts to store: {facts}")
+
+    for fact in facts:
+        try:
+            result = memory.add(fact, user_id=user_id, infer=False)
+            print(f"[chat] stored fact: {fact!r} -> {result}")
+        except Exception as e:
+            print(f"[chat] STORE FAILED for {fact!r}: {type(e).__name__}: {e}")
 
     return reply
 
 
 def get_all_memories(user_id: str) -> list[str]:
     """Fetch every stored memory for a user — used to show what the agent knows."""
-    results = memory.get_all(filters={"user_id": user_id})
-    return [m["memory"] for m in results.get("results", [])]
+    try:
+        results = memory.get_all(filters={"user_id": user_id})
+        print(f"[get_all_memories] raw results: {results}")
+        return [m["memory"] for m in results.get("results", [])]
+    except Exception as e:
+        print(f"[get_all_memories] FAILED: {type(e).__name__}: {e}")
+        return []
